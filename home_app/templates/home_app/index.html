@@ -1,0 +1,41 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Shortener</title>
+    <link rel="stylesheet" href="{% static "css/styles.css" %}">
+</head>
+<body>
+    <div class="container">
+        <h1>Simple URL Shortener</h1>
+        <form id="url-form">
+            <input type="url" id="long-url" placeholder="Enter your long URL here..." required>
+            <input type="datetime-local" id="expire-date" placeholder="Expiration Date">
+            <input type="password" id="url-password" placeholder="Password (optional)">
+            <input type="number" id="max-usage" placeholder="Max Usage (optional)" min="1">
+            <button type="submit">Shorten URL</button>
+        </form>
+
+        <div id="shortened-urls" class="shortened-urls"></div>
+        
+        <!-- Modal for updating URL -->
+        <div id="update-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>Update URL</h2>
+                <form id="update-form">
+                    <input type="url" id="update-long-url" placeholder="Enter your long URL here..." required>
+                    <input type="datetime-local" id="update-expire-date" placeholder="Expiration Date">
+                    <input type="password" id="update-url-password" placeholder="Password (optional)">
+                    <input type="number" id="update-max-usage" placeholder="Max Usage (optional)" min="1">
+                    <button type="submit">Update URL</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="{% static "js/script.js" %}"></script>
+</body>
+</html>
