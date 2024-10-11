@@ -1,14 +1,21 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>URL Shortener</title>
     <link rel="stylesheet" href="{% static "css/styles.css" %}">
 </head>
+
 <body>
     <div class="container">
+        {% if user.is_authenticated %}
+            <a>You are logged in!</a>
+        {% else %}
+            <a href="{% url "home_app:login_page" %}">Login Page</a>
+        {% endif %}
         <h1>Simple URL Shortener</h1>
         <form id="url-form">
             <input type="url" id="long-url" placeholder="Enter your long URL here..." required>
@@ -17,9 +24,9 @@
             <input type="number" id="max-usage" placeholder="Max Usage (optional)" min="1">
             <button type="submit">Shorten URL</button>
         </form>
-
+        <input type="hidden" name="shortUrl" id="shortUrl">
         <div id="shortened-urls" class="shortened-urls"></div>
-        
+
         <!-- Modal for updating URL -->
         <div id="update-modal" class="modal">
             <div class="modal-content">
@@ -34,8 +41,16 @@
                 </form>
             </div>
         </div>
+
+        <!-- Requests Section -->
+        <h2>URL Requests</h2>
+        <div id="requests-section">
+            <!-- This section will be populated dynamically by JavaScript -->
+        </div>
     </div>
 
     <script src="{% static "js/script.js" %}"></script>
 </body>
+
+
 </html>
