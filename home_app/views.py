@@ -1,6 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import login, authenticate
+from django.contrib.auth.hashers import check_password
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 import json
@@ -46,7 +47,10 @@ def redirect_view(request, shorted_url):
         
     if url.password:
         return render(request, "home_app/password_prompt.html", context={"short_url": shorted_url})
-        
+
+    url.used_times += 1 
+    url.save()
+
     return redirect(url.long_url) 
 
 def login_page(request):
@@ -76,7 +80,9 @@ def validate_password(request, shorted_url):
     if url.password:
         if request.method == "POST":
             entered_password = json.loads(request.body).get("password")
-            if url.password == entered_password:
+            if entered_password and check_password(entered_password, url.password):
+                url.used_times += 1
+                url.save()
                 return JsonResponse({'success': True, 'redirect_url': url.long_url})
             else:
                 return JsonResponse({'error': 'Incorrect password'}, status=400)
