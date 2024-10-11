@@ -33,10 +33,14 @@ def create(request):
         if not long_url:
             return JsonResponse({"error": "Long URL is required"}, status=400)
 
-        expiration_date = data.get("expiration_date")
-        password = data.get("password")
-        max_usage = data.get("max_usage")  # Handle the potential null/empty value
+        expiration_date = data.get("expiration_date", None)
+        password = data.get("password", None)
+        max_usage = data.get("max_usage", None)  # Handle the potential null/empty value
         short_url = url_shortener(length=5)
+    
+        expiration_date = None if not expiration_date else expiration_date
+        password = None if not password else password
+        max_usage = None if not max_usage else max_usage
 
         # Create the URL object 
         if request.user.is_authenticated:
