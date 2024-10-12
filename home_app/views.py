@@ -5,6 +5,8 @@ from django.contrib.auth.hashers import check_password
 from django.contrib.auth.decorators import login_required
 from django.views import View
 from django.http import JsonResponse
+from django.core.serializers import serialize
+from django.db.models import F
 import json
 import string
 import secrets
@@ -54,7 +56,7 @@ def redirect_view(request, shorted_url):
     if url.password:
         return render(request, "home_app/password_prompt.html", context={"short_url": shorted_url})
 
-    url.used_times += 1 
+    url.used_times = F("used_times") + 1 
     url.save()
 
     return redirect(url.long_url) 
@@ -97,25 +99,17 @@ def validate_password(request, shorted_url):
     if not entered_password and (check_password(entered_password, url.password) is False):
         return JsonResponse({'error': 'Incorrect password'}, status=400)
 
-    url.used_times += 1
+    url.used_times = F("used_times") + 1 
     url.save()
     return JsonResponse({'success': True, 'redirect_url': url.long_url})
 
 def pendingApproval_requests(request):
-    user = request.user
-    requests = ApprovalRequest.objects.filter(owner=user).select_related('user', 'url')
+    pending_requests = ApprovalRequest.objects.filter(owner=request.user
+                                ).select_related('user', 'url')
 
-    response_data = [
-        {
-            'id': req.id,
-            'user': {
-                'username': req.user.username
-            },
-            'short_url': req.url.short_url
-        }
-        for req in requests
-    ]
-    return JsonResponse(response_data, safe=False)
+    requests = serialize("json", pending_requests, use_natural_primary_keys=True)
+    serialized_requests = json.loads(requests)
+    return JsonResponse(serialized_requests, safe=False)
     
 @login_required
 def approve_request(request, pk):
@@ -190,30 +184,26 @@ def create(request):
         return JsonResponse({"error": "Method not allowed"}, status=405)
 
 
-
 def url_shortener(length):
     chars_available = string.ascii_letters + string.digits
     return ''.join([secrets.choice(chars_available) for _ in range(length)])
 
 @csrf_exempt
 def get_url_details(request, shorted_url):
-    if request.method == "GET":
-        try:
-            url_obj = Url.objects.get(short_url=shorted_url)
-        except Url.DoesNotExist:
-            return JsonResponse({"error": "URL not found"}, status=404)
-
-        return JsonResponse({
-            "data": {
-                "shortened_url": url_obj.short_url,
-                "long_url": url_obj.long_url,
-                "expiration_time": url_obj.expiration_time,
-                "password": url_obj.password,
-                "max_usage": url_obj.max_usage
-            }
-        })
-    else:
+    if request.method != "GET":
         return JsonResponse({"error": "Method not allowed"}, status=405)
+        
+    url_obj = get_object_or_404(Url, short_url=shorted_url)
+    return JsonResponse({
+        "data": {
+            "shortened_url": url_obj.short_url,
+            "long_url": url_obj.long_url,
+            "expiration_time": url_obj.expiration_time,
+            "password": url_obj.password,
+            "max_usage": url_obj.max_usage
+        }
+    })
+        
     
 
 @csrf_exempt

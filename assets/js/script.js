@@ -204,12 +204,13 @@ function fetchRequests() {
             requestsSection.innerHTML = ''; // Clear existing requests
             
             requests.forEach(request => {
+                const requestData = request.fields; // Access the fields
                 const requestElement = document.createElement('div');
                 requestElement.innerHTML = `
-                    <p>User: ${request.user.username}</p>
-                    <p>Short URL: ${request.short_url}</p>
-                    <button class="approve-button" data-request-id="${request.id}">Approve</button>
-                    <button class="reject-button" data-request-id="${request.id}">Reject</button>
+                    <p>User: ${requestData.user}</p>
+                    <p>Short URL: ${requestData.url}</p> <!-- Adjust as per your actual data structure -->
+                    <button class="approve-button" data-request-id="${request.pk}">Approve</button>
+                    <button class="reject-button" data-request-id="${request.pk}">Reject</button>
                 `;
 
                 // Attach event listeners to buttons
@@ -218,8 +219,10 @@ function fetchRequests() {
 
                 requestsSection.appendChild(requestElement);
             });
-        });
+        })
+        .catch(error => console.error('Error fetching requests:', error)); // Handle fetch errors
 }
+
 
 // Function to handle approval
 function handleApprove(event) {
