@@ -3,33 +3,33 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import login, authenticate
 from django.contrib.auth.hashers import check_password
 from django.contrib.auth.decorators import login_required
+from django.views import View
 from django.http import JsonResponse
 import json
 import string
+import secrets
 import random
 from django.http import HttpResponse
 from .models import Url, ApprovalRequest
 import redis
+from django.views.decorators.http import require_POST
 from django.utils import timezone
 
 # Create your views here.
 
 # redis_client = redis.Redis(host="127.0.0.1:6379", db=0)
 
+
 def home_page(request):
-    if request.user.is_authenticated:
-        user_urls = Url.objects.filter(user=request.user)
-    else:      
+    if not request.user.is_authenticated:
         session_id = request.session.get('anonymous_user')
         user_urls = Url.objects.filter(session_id=session_id)
-    
+
+    user_urls = Url.objects.filter(user=request.user)
     return render(request, "home_app/index.html", context={"user_urls": user_urls})
 
 def redirect_view(request, shorted_url):
-    try:
-        url = Url.objects.get(short_url=shorted_url)
-    except Url.DoesNotExist:
-        return HttpResponse("This url doesnt exist!")
+    url = get_object_or_404(Url, short_url=shorted_url)
 
     if url.max_usage and url.max_usage <= url.used_times:
         return HttpResponse("This url Unfortunately has reached its maximum usage!")
@@ -44,7 +44,13 @@ def redirect_view(request, shorted_url):
             owner=url.user, user=request.user, url=url)
         if approval_request.approved is False:
             return HttpResponse("This url requires an approval, So pls w8 until the owner approve you request!")
-        
+
+    if url.requires_approval and approval_request.approved is False:
+        return HttpResponse("This url requires an approval, So pls w8 until the owner approve you request!")
+    elif url.requires_approval and (not request.user.is_authenticated):
+        return redirect("home_app:login_page")
+    
+
     if url.password:
         return render(request, "home_app/password_prompt.html", context={"short_url": shorted_url})
 
@@ -54,57 +60,61 @@ def redirect_view(request, shorted_url):
     return redirect(url.long_url) 
 
 def login_page(request):
-    if request.method == "POST":
+    if request.method != "POST":
+        return render(request, "home_app/login.html")
+    
+     
+
+class LoginPageView(View):
+    template_name = "home_app/login.html"
+    def get(self, request):
+        return render(request, self.template_name)
+
+    def post(self, request):
         username = request.POST.get("username")
         password = request.POST.get("password")
-
         user = authenticate(username=username, password=password)
-        if user is not None:
-            login(request, user)
-            return redirect("home_app:main_page")
-        else:
+        if user is None:
             return render(request, "home_app/login.html", 
-                          {"error": "The provided credentials are wrong!",
-                           "username": username, 
-                           "password": password})
+                            {"error": "The provided credentials are wrong!",
+                            "username": username, 
+                            "password": password})
 
-    return render(request, "home_app/login.html")
-
+        login(request, user)
+        return redirect("home_app:main_page")  
+         
 @csrf_exempt
 def validate_password(request, shorted_url):
-    try:
-        url = Url.objects.get(short_url=shorted_url)
-    except Url.DoesNotExist:
-        return JsonResponse({'error': 'URL not found'}, status=404) 
+    url = get_object_or_404(Url, short_url=shorted_url)
 
-    if url.password:
-        if request.method == "POST":
-            entered_password = json.loads(request.body).get("password")
-            if entered_password and check_password(entered_password, url.password):
-                url.used_times += 1
-                url.save()
-                return JsonResponse({'success': True, 'redirect_url': url.long_url})
-            else:
-                return JsonResponse({'error': 'Incorrect password'}, status=400)
-        else:
-            return JsonResponse({'error': 'Invalid request'}, status=405)
-    else:
-        return JsonResponse({'error': 'URL is not password protected'}, status=400)
+    if not url.password:
+        return JsonResponse({'error': 'URL is not password protected'}, status=400)   
+
+    if request.method != "POST":
+       return JsonResponse({'error': 'Invalid request method'}, status=405)   
+
+    entered_password = json.loads(request.body).get("password")
+    if not entered_password and (check_password(entered_password, url.password) is False):
+        return JsonResponse({'error': 'Incorrect password'}, status=400)
+
+    url.used_times += 1
+    url.save()
+    return JsonResponse({'success': True, 'redirect_url': url.long_url})
 
 def pendingApproval_requests(request):
     user = request.user
-    requests = ApprovalRequest.objects.filter(owner=user)
-    response_data = []
-    for req in requests:
-        response_data.append({
+    requests = ApprovalRequest.objects.filter(owner=user).select_related('user', 'url')
+
+    response_data = [
+        {
             'id': req.id,
             'user': {
                 'username': req.user.username
             },
             'short_url': req.url.short_url
-        })
-
-    # Return the JSON response
+        }
+        for req in requests
+    ]
     return JsonResponse(response_data, safe=False)
     
 @login_required
@@ -112,7 +122,7 @@ def approve_request(request, pk):
     approval_request = get_object_or_404(ApprovalRequest, id=pk)
 
     if request.user != approval_request.owner:
-        return HttpResponse("You have to be the owner of the url")
+        return HttpResponse("You have to be the owner of the url", status=[403])
     
     approval_request.approved = True
     approval_request.save()
@@ -123,7 +133,7 @@ def reject_request(request, pk):
     approval_request = get_object_or_404(ApprovalRequest, id=pk)
 
     if request.user != approval_request.owner:
-        return HttpResponse("You have to be the owner of the url")
+        return HttpResponse("You have to be the owner of the url", status=[403])
     
     approval_request.approved = False
     approval_request.save()
@@ -182,15 +192,8 @@ def create(request):
 
 
 def url_shortener(length):
-    chars_available = (
-        string.ascii_letters + string.digits
-    )  # 5 length = 961 mil possible urls
-    # 6 length = 585 bil possible urls
-    new_url = []
-    for _ in range(int(length)):
-        new_url.append(random.choice(chars_available))
-
-    return "".join(new_url)
+    chars_available = string.ascii_letters + string.digits
+    return ''.join([secrets.choice(chars_available) for _ in range(length)])
 
 @csrf_exempt
 def get_url_details(request, shorted_url):

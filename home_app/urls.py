@@ -4,7 +4,7 @@ from django.urls import path
 app_name = "home_app"
 urlpatterns = [
     path("", views.home_page, name="main_page"),
-    path("login", views.login_page, name="login_page"),
+    path("login", views.LoginPageView.as_view(), name="login_page"),
     path("<str:shorted_url>", views.redirect_view, name="redirect_view"),
     path("validate-password/<str:shorted_url>/", views.validate_password, name="validate_password"),
     path("pendingApproval_requests/", views.pendingApproval_requests, name="pendingApproval_requests"),

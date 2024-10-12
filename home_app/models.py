@@ -4,10 +4,10 @@ from django.contrib.auth.hashers import make_password
 # Create your models here.
 
 class Url(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="urls", null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="urls")
     session_id = models.CharField(max_length=100, null=True, blank=True)
-    long_url = models.CharField(max_length=255)
-    short_url = models.CharField(max_length=50, unique=True)
+    long_url = models.CharField(max_length=1024)
+    short_url = models.CharField(max_length=10, unique=True)
     password = models.CharField(max_length=255, null=True, blank=True)
     expiration_time = models.DateTimeField(null=True, blank=True)
     max_usage = models.PositiveSmallIntegerField(null=True, blank=True, help_text="null means it is unlimited")
@@ -24,10 +24,12 @@ class Url(models.Model):
         super(Url, self).save(*args, **kwargs)
 
 class ApprovalRequest(models.Model):
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="approval_requests", null=True, blank=True)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="approval_requests")
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="approved_requests", null=True, blank=True)
     url = models.ForeignKey(Url, on_delete=models.CASCADE, related_name="approval_requests")
-    approved = models.BooleanField(null=True, blank=True, help_text="False means rejected!")
+    choices = [("approved", "Approved"), ("pending", "Pending"), ("rejected", "Rejected"), ]
+    approved = models.CharField(max_length=10, choices=choices)
+    # approved = models.BooleanField(null=True, blank=True, help_text="False means rejected!")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
