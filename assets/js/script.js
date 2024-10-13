@@ -45,7 +45,7 @@ function createShortUrlDisplay(shortUrl, longUrl, expirationDate, password, maxU
         <span><strong>Password:</strong> <b>${password ? 'Yes' : 'No'}</b></span>
         <span><strong>Max Uses:</strong> <b>${maxUsage ? maxUsage : 'Unlimited'}</b></span>
         <button class="update">Update</button>
-        <button class="delete"><a href="YOUR_DELETE_ENDPOINT_HERE?shortUrl=${shortUrl}" style="color: white; text-decoration: none;">Delete</a></button>
+        <button class="delete"><a href="/delete/${shortUrl}/" style="color: white; text-decoration: none;">Delete</a></button>
     `;
 
     // Attach an event listener to the update button
@@ -103,10 +103,10 @@ document.getElementById('update-form').addEventListener('submit', function (e) {
     e.preventDefault();
 
     const shortUrl = document.getElementById('shortUrl').value;
-    const updatedLongUrl = document.getElementById('update-long-url').value;
-    const updatedExpireDate = document.getElementById('update-expire-date').value;
-    const updatedPassword = document.getElementById('update-url-password').value;
-    const updatedMaxUsage = document.getElementById('update-max-usage').value; // Handle potential empty input
+    const long_url = document.getElementById('update-long-url').value;
+    const expiration_time = document.getElementById('update-expire-date').value;
+    const password = document.getElementById('update-url-password').value;
+    const max_usage = document.getElementById('update-max-usage').value; // Handle potential empty input
 
     // Send updated data to your API endpoint
     fetch(`/update/${shortUrl}/`, {
@@ -115,10 +115,10 @@ document.getElementById('update-form').addEventListener('submit', function (e) {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            updatedLongUrl,
-            updatedExpireDate,
-            updatedPassword,
-            updatedMaxUsage // Send as string, handle in the backend
+            long_url,
+            expiration_time,
+            password,
+            max_usage // Send as string, handle in the backend
         })
     })
         .then(response => response.json())
@@ -126,7 +126,8 @@ document.getElementById('update-form').addEventListener('submit', function (e) {
             if (data.success) {
                 console.log('Updated successfully:', data);
                 // Close modal and potentially update the UI
-                document.getElementById('update-modal').style.display = "none";
+                // document.getElementById('update-modal').style.display = "none";
+                location.reload();
             } else if (data.error) {
                 console.error('Error:', data.error);
                 // Display error message to the user
@@ -160,6 +161,7 @@ function submitPassword(shortUrl) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                alert("You updated your url successfully! you can check the Database")
                 window.location.href = data.redirect_url; 
             } else {
                 // Handle incorrect password

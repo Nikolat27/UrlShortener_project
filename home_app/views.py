@@ -45,7 +45,7 @@ def redirect_view(request, shorted_url):
             return redirect("home_app:login_page")
         approval_request, created = ApprovalRequest.objects.get_or_create(
             owner=url.user, user=request.user, url=url)
-        if approval_request.approved is False:
+        if approval_request.approved == "pending":
             return HttpResponse("This url requires an approval, So pls w8 until the owner approve you request!")
 
     if url.requires_approval and approval_request.approved is False:
@@ -61,13 +61,7 @@ def redirect_view(request, shorted_url):
     url.save()
 
     return redirect(url.long_url) 
-
-def login_page(request):
-    if request.method != "POST":
-        return render(request, "home_app/login.html")
     
-     
-
 class LoginPageView(View):
     template_name = "home_app/login.html"
     def get(self, request):
@@ -139,12 +133,12 @@ def create(request):
     if request.method == "POST":
         data = json.loads(request.body)
 
-        form = forms.UrlCreateForm(data)
-        if form.is_valid():
-            url_obj = form.save(commit=False)
-            url_obj.short_url = url_shortener(length=5)
-
-        # Create the URL object 
+        form = forms.UrlForm(data)
+        if not form.is_valid():
+            return HttpResponse(form.errors)
+        
+        url_obj = form.save(commit=False)
+        url_obj.short_url = url_shortener(length=5)
         if request.user.is_authenticated:
             url_obj.user = request.user
         else:
@@ -154,8 +148,8 @@ def create(request):
                 session_id = random.randint(10000, 99999)
                 request.session["anonymous_user"] = session_id
                 request.session.save()
-                url_obj.session_id = session_id
 
+            url_obj.session_id = session_id
         url_obj.save()
         return JsonResponse({"data": {"shortened_url": url_obj.short_url}})
     else:
@@ -182,43 +176,23 @@ def get_url_details(request, shorted_url):
         }
     })
         
-    
-
 @csrf_exempt
 def update_url(request, shorted_url):
-    if request.method == "PUT":
-        data = json.loads(request.body)
-        updated_long_url = data.get("updatedLongUrl")
-        updated_expiration_date = data.get("updatedExpireDate")
-        updated_password = data.get("updatedPassword")
-        updated_max_usage = data.get("updatedMaxUsage")
+    if request.method != "PUT":
+        return JsonResponse({"error": "Method not allowed (just PUT)"}, status=405)
+        
+    data = json.loads(request.body)
+    url_obj = get_object_or_404(Url, short_url=shorted_url)
 
-        try:
-            url_obj = Url.objects.get(short_url=shorted_url)
-        except Url.DoesNotExist:
-            return JsonResponse({"error": "URL not found"}, status=404)
+    form = forms.UrlForm(data, instance=url_obj)
+    if not form.is_valid():
+        return HttpResponse(form.errors)
+    
+    url_obj.save()
+    return JsonResponse({"success": "URL updated successfully"})
+    
 
-        updated_expiration_date = None if not updated_expiration_date else updated_expiration_date
-        updated_password = None if not updated_password else updated_password
-        updated_max_usage = None if not updated_max_usage else updated_max_usage
-
-        if updated_long_url:
-            url_obj.long_url = updated_long_url
-        if updated_expiration_date:
-            url_obj.expiration_time = updated_expiration_date
-        if updated_password:
-            url_obj.password = updated_password
-        if updated_max_usage is not None:
-            url_obj.max_usage = updated_max_usage
-
-        url_obj.save()
-
-        return JsonResponse({"success": "URL updated successfully"})
-    else:
-        return JsonResponse({"error": "Method not allowed"}, status=405)
-
-
-def delete_url(shorted_url):
+def delete_url(request, shorted_url):
     instance = get_object_or_404(Url, short_url=shorted_url)
     instance.delete()
     return JsonResponse({"data": "Url deleted successfully!"})
@@ -226,15 +200,7 @@ def delete_url(shorted_url):
 @login_required
 def get_user_urls(request):
     user_urls = Url.objects.filter(user=request.user).order_by("-created_at")
-    urls_data = []
-    for url in user_urls:
-        urls_data.append(
-            {
-                "shortUrl": url.short_url,
-                "longUrl": url.long_url,
-                "expirationDate": url.expiration_date,
-                "password": bool(url.password),  # Convert password to boolean
-                "maxUsage": url.max_usage,
-            }
-        )
+    user_urls = serialize("json", user_urls, use_natural_primary_keys=True)
+
+    urls_data = json.loads(user_urls)
     return JsonResponse(urls_data, safe=False)

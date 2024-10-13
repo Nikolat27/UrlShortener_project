@@ -28,8 +28,7 @@ class ApprovalRequest(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="approved_requests", null=True, blank=True)
     url = models.ForeignKey(Url, on_delete=models.CASCADE, related_name="approval_requests")
     choices = [("approved", "Approved"), ("pending", "Pending"), ("rejected", "Rejected"), ]
-    approved = models.CharField(max_length=10, choices=choices)
-    # approved = models.BooleanField(null=True, blank=True, help_text="False means rejected!")
+    approved = models.CharField(max_length=10, choices=choices, default="pending")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
